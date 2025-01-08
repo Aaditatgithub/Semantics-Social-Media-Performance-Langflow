@@ -1,36 +1,16 @@
 import React, { useState } from 'react';
 import { MessageCircle, Maximize2, Minimize2, X } from 'lucide-react';
 
-interface FlowResponse {
-  outputs: Array<{
-    outputs: Array<{
-      outputs: {
-        message: {
-          message: any;
-          text: string;
-        };
-      };
-    }>;
-  }>;
-}
-
-interface Tweaks {
-  [key: string]: object;
-}
-
-class LangflowClient {
+class ExpressClient {
   private baseURL: string;
-  private applicationToken: string;
 
-  constructor(baseURL: string, applicationToken: string) {
+  constructor(baseURL: string) {
     this.baseURL = baseURL;
-    this.applicationToken = applicationToken;
   }
 
-  async post(endpoint: string, body: object, headers: { [key: string]: string } = { "Content-Type": "application/json" }): Promise<any> {
-    headers["Authorization"] = `Bearer ${this.applicationToken}`;
-    headers["Content-Type"] = "application/json";
+  async post(endpoint: string, body: object, headers: { [key: string]: string } = { 'Content-Type': 'application/json' }): Promise<any> {
     const url = `${this.baseURL}${endpoint}`;
+  
     try {
       const response = await fetch(url, {
         method: 'POST',
@@ -38,76 +18,16 @@ class LangflowClient {
         body: JSON.stringify(body),
       });
 
-      const responseMessage = await response.json();
       if (!response.ok) {
-        throw new Error(`${response.status} ${response.statusText} - ${JSON.stringify(responseMessage)}`);
+        const errorText = await response.text();
+        console.error('HTTP Status:', response.status, 'Response:', errorText);
+        throw new Error(`${response.status} ${response.statusText} - ${errorText}`);
       }
-      return responseMessage;
+  
+      const responseText = await response.text();
+      return JSON.parse(responseText);
     } catch (error) {
       console.error('Request Error:', error);
-      throw error;
-    }
-  }
-
-  async initiateSession(
-    flowId: string,
-    langflowId: string,
-    inputValue: string,
-    inputType = 'chat',
-    outputType = 'chat',
-    stream = false,
-    tweaks: Tweaks = {}
-  ): Promise<any> {
-    const endpoint = `/lf/${langflowId}/api/v1/run/${flowId}?stream=${stream}`;
-    return this.post(endpoint, { input_value: inputValue, input_type: inputType, output_type: outputType, tweaks: tweaks });
-  }
-
-  handleStream(streamUrl: string, onUpdate: Function, onClose: Function, onError: Function): EventSource {
-    const eventSource = new EventSource(streamUrl);
-
-    eventSource.onmessage = (event) => {
-      const data = JSON.parse(event.data);
-      onUpdate(data);
-    };
-
-    eventSource.onerror = (event) => {
-      console.error('Stream Error:', event);
-      onError(event);
-      eventSource.close();
-    };
-
-    eventSource.addEventListener("close", () => {
-      onClose('Stream closed');
-      eventSource.close();
-    });
-
-    return eventSource;
-  }
-
-  async runFlow(
-    flowIdOrName: string,
-    langflowId: string,
-    inputValue: string,
-    inputType = 'chat',
-    outputType = 'chat',
-    tweaks: Tweaks = {},
-    stream = false,
-    onUpdate: Function,
-    onClose: Function,
-    onError: Function
-  ): Promise<FlowResponse> {
-    try {
-      const initResponse = await this.initiateSession(flowIdOrName, langflowId, inputValue, inputType, outputType, stream, tweaks);
-      console.log('Init Response:', initResponse);
-      if (stream && initResponse && initResponse.outputs && initResponse.outputs[0].outputs[0].artifacts.stream_url) {
-        const streamUrl = initResponse.outputs[0].outputs[0].artifacts.stream_url;
-        console.log(`Streaming from: ${streamUrl}`);
-        this.handleStream(streamUrl, onUpdate, onClose, onError);
-      }
-      return initResponse;
-    } catch (error) {
-      console.error('Error running flow:', error);
-      onError('Error initiating session');
       throw error;
     }
   }
@@ -116,13 +36,11 @@ class LangflowClient {
 const Chatbot: React.FC = () => {
   const [isOpen, setIsOpen] = useState<boolean>(false);
   const [isExpanded, setIsExpanded] = useState<boolean>(false);
-  const [messages, setMessages] = useState<Array<{ text: string, isUser: boolean }>>([{ text: "Hello! How can I help you with your social media analytics today?", isUser: false }]);
+  const [messages, setMessages] = useState<Array<{ text: string, isUser: boolean }>>([{ text: "Hello! How can I help you?", isUser: false }]);
   const [input, setInput] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(false);
 
-  const langflowClient = new LangflowClient('https://api.langflow.astra.datastax.com', "");
-  const flowIdOrName = '5b03c292-95ee-4497-b604-951b57bcb40d';
-  const langflowId = '56a72d88-9d75-4b3e-9a7e-b5a8310a9875';
+  const expressClient = new ExpressClient('http://localhost:3000'); // Replace with your Express backend URL
 
   const handleSend = async () => {
     if (!input.trim()) return;
@@ -131,51 +49,15 @@ const Chatbot: React.FC = () => {
     setIsLoading(true);
 
     try {
-      const tweaks: Tweaks = {
-        "File-p5f93": {},
-        "AstraDB-3BrL7": {},
-        "MistalAIEmbeddings-fdkW0": {},
-        "ChatInput-Ev1rP": {},
-        "Agent-WBqR3": {},
-        "ChatOutput-6inEp": {},
-        "Prompt-OwKob": {},
-        "AstraDB-V9v0s": {},
-        "MistalAIEmbeddings-QMxaF": {},
-        "ParseData-KZMDD": {},
-        "SplitText-R5yR1": {},
-      };
+      const response = await expressClient.post('/chat', { input_value: input });
 
-      const response = await langflowClient.runFlow(
-        flowIdOrName,
-        langflowId,
-        input,
-        'chat',
-        'chat',
-        tweaks,
-        false,
-        (data: any) => {
-          setMessages(prev => [...prev, { text: data.chunk, isUser: false }]);
-        },
-        (message: string) => {
-          setIsLoading(false);
-          console.log('Stream closed:', message);
-        },
-        (error: string) => {
-          setIsLoading(false);
-          console.log('Stream Error:', error);
-        }
-      );
-
-      if (response && response.outputs) {
-        const flowOutputs = response.outputs[0];
-        const firstComponentOutputs = flowOutputs.outputs[0];
-        const output = firstComponentOutputs.outputs.message;
-
-        setMessages(prev => [...prev, { text: output.message.text, isUser: false }]);
+      if (response && response.message) {
+        setMessages(prev => [...prev, { text: response.message, isUser: false }]);
       }
     } catch (error) {
       console.error('Error:', error);
       setMessages(prev => [...prev, { text: 'Sorry, something went wrong. Please try again later.', isUser: false }]);
+    } finally {
       setIsLoading(false);
     }
   };
@@ -200,7 +82,7 @@ const Chatbot: React.FC = () => {
               <h3 className="text-white font-semibold">Analytics Assistant</h3>
               <div className="flex gap-2">
                 <button onClick={toggleExpand} className="text-gray-400 hover:text-white">
-                  {isExpanded ? <Minimize2 className="w-5 h-5" /> : <Maximize2 className="w-5 h-5" />}
+                  {isExpanded ? <Minimize2 className="w-5 h-5" /> : <Maximize2 className="w-10 h-5" />}
                 </button>
                 <button onClick={() => setIsOpen(false)} className="text-gray-400 hover:text-white">
                   <X className="w-5 h-5" />
@@ -235,7 +117,7 @@ const Chatbot: React.FC = () => {
                 />
                 <button
                   onClick={handleSend}
-                  className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition-colors"
+                  className="p-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
                 >
                   Send
                 </button>

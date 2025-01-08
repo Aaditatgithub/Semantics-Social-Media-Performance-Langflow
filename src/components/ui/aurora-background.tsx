@@ -1,5 +1,5 @@
 "use client";
-import { cn } from "../../utils/utils";
+import { cn } from "../../../src/utils/utils";
 
 export const AuroraBackground = ({
   showRadialGradient = true,
