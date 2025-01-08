@@ -10,7 +10,7 @@ class ExpressClient {
 
   async post(endpoint: string, body: object, headers: { [key: string]: string } = { 'Content-Type': 'application/json' }): Promise<any> {
     const url = `${this.baseURL}${endpoint}`;
-  
+
     try {
       const response = await fetch(url, {
         method: 'POST',
@@ -23,7 +23,7 @@ class ExpressClient {
         console.error('HTTP Status:', response.status, 'Response:', errorText);
         throw new Error(`${response.status} ${response.statusText} - ${errorText}`);
       }
-  
+
       const responseText = await response.text();
       return JSON.parse(responseText);
     } catch (error) {
@@ -39,6 +39,7 @@ const Chatbot: React.FC = () => {
   const [messages, setMessages] = useState<Array<{ text: string, isUser: boolean }>>([{ text: "Hello! How can I help you?", isUser: false }]);
   const [input, setInput] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [isDarkMode, setIsDarkMode] = useState<boolean>(true); // Theme toggle state
 
   const expressClient = new ExpressClient('http://localhost:3000'); // Replace with your Express backend URL
 
@@ -64,6 +65,8 @@ const Chatbot: React.FC = () => {
 
   const toggleExpand = () => setIsExpanded(!isExpanded);
 
+  const toggleTheme = () => setIsDarkMode(!isDarkMode); // Toggle theme function
+
   return (
     <>
       {!isOpen && (
@@ -76,15 +79,18 @@ const Chatbot: React.FC = () => {
       )}
 
       {isOpen && (
-        <div className={`fixed transition-all duration-300 ease-in-out ${isExpanded ? 'right-0 top-0 bottom-0 w-96' : 'bottom-6 right-6 w-96 h-[500px]'}`} style={{ zIndex: 9999 }}>
-          <div className="bg-gray-800 rounded-lg shadow-xl h-full flex flex-col">
-            <div className="p-4 bg-gray-900 rounded-t-lg flex items-center justify-between">
-              <h3 className="text-white font-semibold">Analytics Assistant</h3>
+        <div
+          className={`fixed transition-all duration-300 ease-in-out ${isExpanded ? 'right-0 top-0 bottom-0 w-96' : 'bottom-6 right-6 w-96 h-[500px]'} ${isDarkMode ? 'bg-gray-800' : 'bg-white'}`}
+          style={{ zIndex: 9999 }}
+        >
+          <div className={`rounded-lg shadow-xl h-full flex flex-col ${isDarkMode ? 'bg-gray-800' : 'bg-white'}`}>
+            <div className={`p-4 ${isDarkMode ? 'bg-gray-900' : 'bg-gray-200'} rounded-t-lg flex items-center justify-between`}>
+              <h3 className={`${isDarkMode ? 'text-white' : 'text-black'} font-semibold`}>Analytics Assistant</h3>
               <div className="flex gap-2">
-                <button onClick={toggleExpand} className="text-gray-400 hover:text-white">
+                <button onClick={toggleExpand} className={`${isDarkMode ? 'text-gray-400 hover:text-white' : 'text-gray-600 hover:text-black'}`}>
                   {isExpanded ? <Minimize2 className="w-5 h-5" /> : <Maximize2 className="w-10 h-5" />}
                 </button>
-                <button onClick={() => setIsOpen(false)} className="text-gray-400 hover:text-white">
+                <button onClick={() => setIsOpen(false)} className={`${isDarkMode ? 'text-gray-400 hover:text-white' : 'text-gray-600 hover:text-black'}`}>
                   <X className="w-5 h-5" />
                 </button>
               </div>
@@ -93,19 +99,19 @@ const Chatbot: React.FC = () => {
             <div className="flex-1 overflow-y-auto p-4 space-y-4">
               {messages.map((message, index) => (
                 <div key={index} className={`flex ${message.isUser ? 'justify-end' : 'justify-start'}`}>
-                  <div className={`max-w-[80%] p-3 rounded-lg ${message.isUser ? 'bg-purple-600 text-white' : 'bg-gray-700 text-white'}`}>
+                  <div className={`max-w-[80%] p-3 rounded-lg ${message.isUser ? 'bg-purple-600 text-white' : isDarkMode ? 'bg-gray-700 text-white' : 'bg-gray-300 text-black'}`}>
                     {message.text}
                   </div>
                 </div>
               ))}
               {isLoading && (
                 <div className="flex justify-start">
-                  <div className="max-w-[80%] p-3 rounded-lg bg-gray-700 text-white">...</div>
+                  <div className={`max-w-[80%] p-3 rounded-lg ${isDarkMode ? 'bg-gray-700 text-white' : 'bg-gray-300 text-black'}`}>...</div>
                 </div>
               )}
             </div>
 
-            <div className="p-4 border-t border-gray-700">
+            <div className={`p-4 border-t ${isDarkMode ? 'border-gray-700' : 'border-gray-300'}`}>
               <div className="flex gap-2">
                 <input
                   type="text"
@@ -113,7 +119,7 @@ const Chatbot: React.FC = () => {
                   onChange={(e) => setInput(e.target.value)}
                   onKeyPress={(e) => e.key === 'Enter' && handleSend()}
                   placeholder="Type your message..."
-                  className="flex-1 bg-gray-700 text-white rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  className={`flex-1 ${isDarkMode ? 'bg-gray-700 text-white' : 'bg-gray-200 text-black'} rounded-lg px-4 py-2 focus:outline-none focus:ring-2 ${isDarkMode ? 'focus:ring-purple-500' : 'focus:ring-purple-300'}`}
                 />
                 <button
                   onClick={handleSend}
@@ -122,6 +128,15 @@ const Chatbot: React.FC = () => {
                   Send
                 </button>
               </div>
+            </div>
+
+            <div className={`p-4 ${isDarkMode ? 'bg-gray-900 text-white' : 'bg-gray-200 text-black'} flex justify-center`}>
+              <button
+                onClick={toggleTheme}
+                className="px-4 py-2 rounded-lg border border-gray-500 hover:bg-gray-700 hover:text-white transition-colors"
+              >
+                {isDarkMode ? 'Switch to Bright Mode' : 'Switch to Dark Mode'}
+              </button>
             </div>
           </div>
         </div>
